@@ -24,8 +24,8 @@ export USE_STABILIZED_VELOCITY="--use_stabilized_velocity"
 
 # Logging and checkpointing
 export CHECKPOINTING_STEPS=100
-export LOGGING_STEPS=10
-export VALIDATION_STEPS=100
+export LOGGING_STEPS=5
+export VALIDATION_STEPS=50
 
 # Validation prompt (optional)
 export VALIDATION_PROMPT="Convert the style to 3D Chibi Style"

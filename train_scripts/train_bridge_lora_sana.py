@@ -681,7 +681,7 @@ def run_validation(
     global_step,
     scheduler,
 ):
-    """Run validation and log images"""
+    """Run validation and log images using Bridge inference (data-to-data)"""
     transformer.eval()
 
     # Wrap the base scheduler with ViBTScheduler (Brownian Bridge sampler)
@@ -704,18 +704,34 @@ def run_validation(
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
 
+    # Load validation dataset to get source images
+    val_dataset = BridgeDataset(
+        data_dir=args.train_data_dir,
+        resolution=args.resolution,
+    )
+
     # Generate validation images
     generator = torch.Generator(device=accelerator.device)
     if args.seed is not None:
         generator = generator.manual_seed(args.seed)
 
     images = []
-    for _ in range(args.num_validation_images):
+    for i in range(args.num_validation_images):
+        # Get source image from dataset
+        idx = i % len(val_dataset)
+        sample = val_dataset[idx]
+        source_image = sample['source_images'].unsqueeze(0).to(accelerator.device)
+
+        # Encode source image to latents (Bridge starting point)
+        with torch.no_grad():
+            source_latents = encode_images(vae, source_image)
+
         with torch.autocast("cuda", dtype=torch.bfloat16):
             image = pipeline(
                 prompt=args.validation_prompt,
-                num_inference_steps=20,
+                num_inference_steps=28,
                 guidance_scale=4.5,
+                latents=source_latents,  # ✅ Pass source latents for Bridge
                 generator=generator,
             ).images[0]
         images.append(image)
