@@ -28,7 +28,6 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, Gemma2Model
-from vibt.scheduler import ViBTScheduler
 
 if is_wandb_available():
     import wandb
@@ -434,7 +433,7 @@ def main():
         revision=args.revision,
     )
 
-    # Load base SanaPipeline to obtain its scheduler config for ViBT scheduler
+    # Load base SanaPipeline to obtain its scheduler config for validation sampling
     base_pipeline = SanaPipeline.from_pretrained(
         args.pretrained_model_name_or_path,
         revision=args.revision,
@@ -560,20 +559,22 @@ def main():
                         attention_mask=text_inputs.attention_mask,
                     )[0]
 
-                # Sample timestep t ~ U(0, 1)
+                # Sample timestep t ~ U(t_min, t_max) to avoid extremes near 0 or 1
                 bsz = x0.shape[0]
-                t = torch.rand(bsz, device=accelerator.device)
+                t_min, t_max = 0.01, 0.99
+                t = t_min + (t_max - t_min) * torch.rand(bsz, device=accelerator.device)
 
                 # Sample noise ε ~ N(0, I)
                 noise = torch.randn_like(x0)
 
                 # Construct intermediate state x_t (Brownian Bridge formula)
-                # x_t = (1-t)*x0 + t*x1 + sqrt(t*(1-t)) * ε
+                # x_t = (1-t)*x0 + t*x1 + s * sqrt(t*(1-t)) * ε
+                # where s is the noise_scale parameter
                 t_expanded = t.view(-1, 1, 1, 1)
                 x_t = (
                     (1 - t_expanded) * x0
                     + t_expanded * x1
-                    + torch.sqrt(t_expanded * (1 - t_expanded)) * noise
+                    + args.noise_scale * torch.sqrt(t_expanded * (1 - t_expanded)) * noise
                 )
 
                 # Compute target velocity: u_t = (x1 - x_t) / (1 - t)
@@ -681,25 +682,19 @@ def run_validation(
     global_step,
     scheduler,
 ):
-    """Run validation and log images using Bridge inference (data-to-data)"""
+    """Run validation and log images using Sana's default scheduler with Bridge latents"""
     transformer.eval()
 
-    # Wrap the base scheduler with ViBTScheduler (Brownian Bridge sampler)
-    vibt_scheduler = ViBTScheduler.from_scheduler(scheduler)
-    # Align noise_scale with training argument; keep default shift_gamma, seed from args if provided
-    vibt_scheduler.set_parameters(
-        noise_scale=args.noise_scale,
-        shift_gamma=5.0,
-        seed=args.seed,
-    )
+    # Create a fresh copy of the base Sana scheduler for validation to avoid状态污染
+    scheduler_for_val = type(scheduler).from_config(scheduler.config)
 
-    # Create pipeline for inference using ViBT scheduler
+    # Create pipeline for inference using Sana scheduler
     pipeline = SanaPipeline(
         vae=vae,
         text_encoder=text_encoder,
         tokenizer=tokenizer,
         transformer=accelerator.unwrap_model(transformer),
-        scheduler=vibt_scheduler,
+        scheduler=scheduler_for_val,
     )
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
@@ -730,7 +725,7 @@ def run_validation(
             image = pipeline(
                 prompt=args.validation_prompt,
                 num_inference_steps=28,
-                guidance_scale=4.5,
+                guidance_scale=3.5,
                 latents=source_latents,  # ✅ Pass source latents for Bridge
                 generator=generator,
             ).images[0]

@@ -5,25 +5,25 @@
 
 export MODEL_PATH="/cache/SANA1.5_4.8B_1024px_diffusers"
 export DATA_DIR="/cache/omnic/3D_Chibi"
-export OUTPUT_DIR="./output/bridge_3d_chibi"
+export OUTPUT_DIR="/cache/sanaoutput/bridge_3d_chibi"
 
 # Training configuration
 export RESOLUTION=1024
 export TRAIN_BATCH_SIZE=4
 export GRADIENT_ACCUMULATION_STEPS=1
 export MAX_TRAIN_STEPS=20000
-export LEARNING_RATE=1e-4
+export LEARNING_RATE=1e-5
 
 # LoRA configuration
 export LORA_RANK=128
 export LORA_ALPHA=128
 
 # Bridge-specific configuration
-export NOISE_SCALE=1.0
+export NOISE_SCALE=0.5
 export USE_STABILIZED_VELOCITY="--use_stabilized_velocity"
 
 # Logging and checkpointing
-export CHECKPOINTING_STEPS=100
+export CHECKPOINTING_STEPS=200
 export LOGGING_STEPS=5
 export VALIDATION_STEPS=50
 
