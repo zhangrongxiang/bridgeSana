@@ -12,14 +12,14 @@ export RESOLUTION=1024
 export TRAIN_BATCH_SIZE=4
 export GRADIENT_ACCUMULATION_STEPS=1
 export MAX_TRAIN_STEPS=20000
-export LEARNING_RATE=1e-5
+export LEARNING_RATE=1e-4
 
 # LoRA configuration
 export LORA_RANK=128
 export LORA_ALPHA=128
 
 # Bridge-specific configuration
-export NOISE_SCALE=0.5
+export NOISE_SCALE=1.0
 export USE_STABILIZED_VELOCITY="--use_stabilized_velocity"
 
 # Logging and checkpointing

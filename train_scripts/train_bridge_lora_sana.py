@@ -330,19 +330,27 @@ def compute_bridge_loss(
     """
     Compute Bridge training loss with optional stabilized velocity matching.
 
+        Time convention (REVERSED for Sana compatibility):
+        - Here `t` is the reversed time variable r ∈ (0, 1).
+        - t=1 corresponds to x0 (source)
+        - t=0 corresponds to x1 (target)
+        - x_t = t*x0 + (1-t)*x1 + sqrt(t*(1-t))*ε
+        - If the forward-time bridge velocity is u(τ, x) = (x1 - x_τ) / (1-τ) with τ∈(0,1),
+            then with r = 1-τ we have dx/dr = v(r, x) = -u(1-r, x) = (x_r - x1) / r.
+
     Args:
         model_pred: Model prediction (velocity)
-        target_velocity: Target velocity u_t = (x1 - x_t) / (1 - t)
+        target_velocity: Target velocity v_t = (x1 - x_t) / (1 - t)
         x0: Source latent
         x1: Target latent
-        t: Timestep [0, 1]
+        t: Timestep [0, 1], where t=1 is source, t=0 is target (reversed)
         use_stabilized: Whether to use stabilized velocity matching
     """
     if not use_stabilized:
         # Standard velocity matching loss
         loss = F.mse_loss(model_pred, target_velocity, reduction="mean")
     else:
-        # Stabilized velocity matching (ViBT paper Eq. 4-5)
+        # Stabilized velocity matching (ViBT paper, adapted for reversed time)
         # Compute normalization factor α
         batch_size = x0.shape[0]
         D = x0[0].numel()  # Latent dimension
@@ -350,9 +358,9 @@ def compute_bridge_loss(
         # ||x1 - x0||^2 for each sample in batch
         diff_norm_sq = torch.sum((x1 - x0).reshape(batch_size, -1) ** 2, dim=1, keepdim=True)
 
-        # α^2 = 1 + [t * D] / [(1-t) * ||x1-x0||^2]
-        # Add small epsilon to avoid division by zero
-        alpha_sq = 1.0 + (t * D) / ((1 - t) * diff_norm_sq + 1e-8)
+        # For reversed time (r = t): α^2 = 1 + [(1-r) * D] / [r * ||x1-x0||^2]
+        # This is the forward-time ViBT formula with τ replaced by (1-r).
+        alpha_sq = 1.0 + ((1 - t) * D) / (t * diff_norm_sq + 1e-8)
         alpha = torch.sqrt(alpha_sq).reshape(-1, 1, 1, 1)
 
         # Normalize both predictions and targets
@@ -559,27 +567,35 @@ def main():
                         attention_mask=text_inputs.attention_mask,
                     )[0]
 
-                # Sample timestep t ~ U(t_min, t_max) to avoid extremes near 0 or 1
+                # Sample timestep t ~ U(t_min, t_max) with REVERSED time direction
+                # t=1: corresponds to x0 (source), t=0: corresponds to x1 (target)
+                # This matches Sana's pretrained time direction (1000 -> 0)
                 bsz = x0.shape[0]
                 t_min, t_max = 0.01, 0.99
-                t = t_min + (t_max - t_min) * torch.rand(bsz, device=accelerator.device)
+                t_forward = t_min + (t_max - t_min) * torch.rand(bsz, device=accelerator.device)
+                t = 1.0 - t_forward  # Reverse time: t ∈ [0.99, 0.01]
 
                 # Sample noise ε ~ N(0, I)
                 noise = torch.randn_like(x0)
 
-                # Construct intermediate state x_t (Brownian Bridge formula)
-                # x_t = (1-t)*x0 + t*x1 + s * sqrt(t*(1-t)) * ε
-                # where s is the noise_scale parameter
+                # Construct intermediate state x_t (Brownian Bridge formula with reversed time)
+                # When t=1: x_t ≈ x0 (source)
+                # When t=0: x_t ≈ x1 (target)
+                # Formula: x_t = t*x0 + (1-t)*x1 + s * sqrt(t*(1-t)) * ε
                 t_expanded = t.view(-1, 1, 1, 1)
                 x_t = (
-                    (1 - t_expanded) * x0
-                    + t_expanded * x1
+                    t_expanded * x0
+                    + (1 - t_expanded) * x1
                     + args.noise_scale * torch.sqrt(t_expanded * (1 - t_expanded)) * noise
                 )
 
-                # Compute target velocity: u_t = (x1 - x_t) / (1 - t)
-                # Add small epsilon to avoid division by zero
-                target_velocity = (x1 - x_t) / (1 - t_expanded + 1e-5)
+                # Compute target velocity for REVERSED time Bridge.
+                # We use reversed time r=t where:
+                #   x_r = r*x0 + (1-r)*x1 + s*sqrt(r(1-r))*ε,  r∈(0,1)
+                # The reversed-time velocity (derivation in compute_bridge_loss docstring) is:
+                #   v(r, x_r) = (x_r - x1) / r
+                # This way, when an inference schedule uses decreasing r (Δr < 0), updates move x towards x1.
+                target_velocity = (x_t - x1) / (t_expanded + 1e-5)
 
                 # Forward pass: predict velocity
                 model_pred = transformer(
@@ -599,6 +615,18 @@ def main():
                     use_stabilized=args.use_stabilized_velocity,
                 )
 
+                # Debug: compare direction of model_pred and target_velocity
+                with torch.no_grad():
+                    mp_flat = model_pred.reshape(model_pred.shape[0], -1)
+                    tv_flat = target_velocity.reshape(target_velocity.shape[0], -1)
+                    cos_sim = F.cosine_similarity(mp_flat, tv_flat, dim=1).mean().item()
+                    print(
+                        f"Step {global_step}: loss={loss.item():.4f}, "
+                        f"cos(model_pred, target_velocity)={cos_sim:.4f}, "
+                        f"model_pred range=[{model_pred.min():.3f}, {model_pred.max():.3f}], "
+                        f"target_velocity range=[{target_velocity.min():.3f}, {target_velocity.max():.3f}]"
+                    )
+
                 # Backward pass
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
@@ -616,10 +644,11 @@ def main():
                 progress_bar.update(1)
                 global_step += 1
 
-                # Logging
+                # Logging: report average loss over the last `logging_steps`
                 if global_step % args.logging_steps == 0:
+                    mean_loss = train_loss / args.logging_steps
                     logs = {
-                        "loss": train_loss,
+                        "loss": mean_loss,
                         "lr": lr_scheduler.get_last_lr()[0],
                         "step": global_step,
                         "epoch": epoch,
@@ -725,7 +754,7 @@ def run_validation(
             image = pipeline(
                 prompt=args.validation_prompt,
                 num_inference_steps=28,
-                guidance_scale=3.5,
+                guidance_scale=1.0,
                 latents=source_latents,  # ✅ Pass source latents for Bridge
                 generator=generator,
             ).images[0]
