@@ -9,8 +9,8 @@ export OUTPUT_DIR="./output/bridge_3d_chibi"
 
 # Training configuration
 export RESOLUTION=1024
-export TRAIN_BATCH_SIZE=1
-export GRADIENT_ACCUMULATION_STEPS=4
+export TRAIN_BATCH_SIZE=4
+export GRADIENT_ACCUMULATION_STEPS=1
 export MAX_TRAIN_STEPS=20000
 export LEARNING_RATE=1e-4
 
@@ -23,12 +23,12 @@ export NOISE_SCALE=1.0
 export USE_STABILIZED_VELOCITY="--use_stabilized_velocity"
 
 # Logging and checkpointing
-export CHECKPOINTING_STEPS=500
+export CHECKPOINTING_STEPS=100
 export LOGGING_STEPS=10
-export VALIDATION_STEPS=500
+export VALIDATION_STEPS=100
 
 # Validation prompt (optional)
-export VALIDATION_PROMPT="3D Chibi Style, A cute cartoon character with big eyes"
+export VALIDATION_PROMPT="Convert the style to 3D Chibi Style"
 
 # Launch training
 accelerate launch train_bridge_lora_sana.py \

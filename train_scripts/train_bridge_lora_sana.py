@@ -28,6 +28,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, Gemma2Model
+from vibt.scheduler import ViBTScheduler
 
 if is_wandb_available():
     import wandb
@@ -380,7 +381,8 @@ def main():
         log_with=args.report_to,
         project_config=accelerator_project_config,
     )
-
+    if accelerator.is_main_process:
+        accelerator.init_trackers("bridge_lora_sana", config=vars(args))
     # Setup logging
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -431,6 +433,14 @@ def main():
         subfolder="transformer",
         revision=args.revision,
     )
+
+    # Load base SanaPipeline to obtain its scheduler config for ViBT scheduler
+    base_pipeline = SanaPipeline.from_pretrained(
+        args.pretrained_model_name_or_path,
+        revision=args.revision,
+    )
+    base_scheduler = base_pipeline.scheduler
+    del base_pipeline
 
     logger.info("Models loaded successfully")
 
@@ -640,6 +650,7 @@ def main():
                         args=args,
                         accelerator=accelerator,
                         global_step=global_step,
+                        scheduler=base_scheduler,
                     )
 
             if global_step >= args.max_train_steps:
@@ -668,17 +679,27 @@ def run_validation(
     args,
     accelerator,
     global_step,
+    scheduler,
 ):
     """Run validation and log images"""
     transformer.eval()
 
-    # Create pipeline for inference
+    # Wrap the base scheduler with ViBTScheduler (Brownian Bridge sampler)
+    vibt_scheduler = ViBTScheduler.from_scheduler(scheduler)
+    # Align noise_scale with training argument; keep default shift_gamma, seed from args if provided
+    vibt_scheduler.set_parameters(
+        noise_scale=args.noise_scale,
+        shift_gamma=5.0,
+        seed=args.seed,
+    )
+
+    # Create pipeline for inference using ViBT scheduler
     pipeline = SanaPipeline(
         vae=vae,
         text_encoder=text_encoder,
         tokenizer=tokenizer,
         transformer=accelerator.unwrap_model(transformer),
-        scheduler=None,  # Will use default
+        scheduler=vibt_scheduler,
     )
     pipeline = pipeline.to(accelerator.device)
     pipeline.set_progress_bar_config(disable=True)
