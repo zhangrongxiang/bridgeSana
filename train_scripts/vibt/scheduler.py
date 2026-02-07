@@ -1,4 +1,5 @@
 from diffusers.schedulers import UniPCMultistepScheduler
+from diffusers.schedulers.scheduling_utils import SchedulerOutput
 import torch
 
 
@@ -11,13 +12,15 @@ class ViBTScheduler(UniPCMultistepScheduler):
         self.noise_scale = noise_scale
         self.config.flow_shift = shift_gamma
         self.generator = (
-            None if seed is None else torch.Generator("cuda").manual_seed(seed)
+            None
+            if seed is None
+            else torch.Generator("cuda" if torch.cuda.is_available() else "cpu").manual_seed(seed)
         )
 
-    def step(self, model_output, timestep, sample, **kwargs):
+    def step(self, model_output, timestep, sample, return_dict: bool = True, **kwargs):
         delta_t = (
-            max(self.timesteps[self.timesteps < timestep]) - timestep
-            if any(self.timesteps < timestep)
+            torch.max(self.timesteps[self.timesteps < timestep]) - timestep
+            if (self.timesteps < timestep).any()
             else -timestep - 1
         ) / 1000
 
@@ -32,7 +35,9 @@ class ViBTScheduler(UniPCMultistepScheduler):
         )
         latents = sample + delta_t * model_output + eta * self.noise_scale * noise
 
-        return (latents,)
+        if not return_dict:
+            return (latents,)
+        return SchedulerOutput(prev_sample=latents)
 
     @classmethod
     def from_scheduler(

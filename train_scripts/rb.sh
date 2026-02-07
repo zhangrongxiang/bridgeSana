@@ -5,11 +5,11 @@
 
 export MODEL_PATH="/cache/SANA1.5_4.8B_1024px_diffusers"
 export DATA_DIR="/cache/omnic/3D_Chibi"
-export OUTPUT_DIR="/cache/05sanaoutput/bridge_3d_chibi"
+export OUTPUT_DIR="/cache/concatsanaoutput/bridge_3d_chibi"
 
 # Training configuration
 export RESOLUTION=1024
-export TRAIN_BATCH_SIZE=4
+export TRAIN_BATCH_SIZE=1
 export GRADIENT_ACCUMULATION_STEPS=1
 export MAX_TRAIN_STEPS=20000
 export LEARNING_RATE=1e-4
@@ -19,7 +19,7 @@ export LORA_RANK=128
 export LORA_ALPHA=128
 
 # Bridge-specific configuration
-export NOISE_SCALE=0.5
+export NOISE_SCALE=1.0
 export USE_STABILIZED_VELOCITY="--use_stabilized_velocity"
 
 # Logging and checkpointing
@@ -27,11 +27,12 @@ export CHECKPOINTING_STEPS=200
 export LOGGING_STEPS=5
 export VALIDATION_STEPS=50
 
+
 # Validation prompt (optional)
 export VALIDATION_PROMPT="Convert the style to 3D Chibi Style"
 
 # Launch training
-accelerate launch train_bridge_lora_sana.py \
+accelerate launch train_bridge_lora_sana_concat.py \
   --pretrained_model_name_or_path="${MODEL_PATH}" \
   --train_data_dir="${DATA_DIR}" \
   --output_dir="${OUTPUT_DIR}" \
