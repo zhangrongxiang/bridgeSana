@@ -16,6 +16,7 @@ import torch.nn.functional as F
 import torch.utils.checkpoint
 import torch.nn as nn
 import contextlib
+import lpips
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import ProjectConfiguration, set_seed
@@ -103,7 +104,7 @@ def parse_args():
     parser.add_argument(
         "--lr_scheduler",
         type=str,
-        default="constant",
+        default="StepLR",
         help="Learning rate scheduler",
     )
     parser.add_argument(
@@ -137,7 +138,7 @@ def parse_args():
     parser.add_argument(
         "--noise_scale",
         type=float,
-        default=0.7,
+        default=0,
         help="Noise scale for Bridge sampling (s parameter)",
     )
     parser.add_argument(
@@ -157,8 +158,14 @@ def parse_args():
     parser.add_argument(
         "--pixel_loss_lambda",
         type=float,
-        default=0.4,
+        default=0.7,
         help="Weight for pixel-space L2 loss between decoded x1_hat and target image. 0 disables.",
+    )
+    parser.add_argument(
+        "--booting_noise_scale",
+        type=float,
+        default=0,
+        help="Std of Gaussian booting noise added to source latents for concat conditioning: x0_cond = x0 + scale * eps. 0 disables.",
     )
 
     # Output arguments
@@ -545,6 +552,12 @@ def main():
 
     logger.info("Models loaded successfully")
 
+    # LPIPS perceptual loss (replaces pixel-space L2 loss)
+    lpips_loss_fn = lpips.LPIPS(net="vgg")
+    lpips_loss_fn.to(accelerator.device)
+    lpips_loss_fn.eval()
+    lpips_loss_fn.requires_grad_(False)
+
     # Setup LoRA for transformer
     logger.info(f"Setting up LoRA with rank={args.lora_rank}, alpha={args.lora_alpha}")
     lora_config = LoraConfig(
@@ -666,10 +679,19 @@ def main():
                 target_images = batch['target_images'].to(accelerator.device)
                 prompts = batch['prompts']
 
+                # Initialize cos_sim for logging
+                current_cos_sim = 0.0
+
                 # Encode images to latents
                 with torch.no_grad():
                     x0 = encode_images(vae, source_images)  # Source latents
                     x1 = encode_images(vae, target_images)  # Target latents
+
+                # Booting noise for concat conditioning (sample once per batch)
+                x0_cond = x0
+                if cond_proj is not None and args.booting_noise_scale and args.booting_noise_scale > 0:
+                    with torch.no_grad():
+                        x0_cond = x0 + args.booting_noise_scale * torch.randn_like(x0)
 
                 encoder_hidden_states, encoder_attention_mask = None, None
                 if args.conditioning in {"text", "concat_text"}:
@@ -711,7 +733,7 @@ def main():
                 # Forward pass: predict velocity
                 model_in = x_t
                 if cond_proj is not None:
-                    model_in = cond_proj(torch.cat([x_t, x0], dim=1))
+                    model_in = cond_proj(torch.cat([x_t, x0_cond], dim=1))
 
                 model_pred = transformer(
                     hidden_states=model_in,
@@ -735,10 +757,18 @@ def main():
                     # One-step estimate of x1 from reversed-time velocity target:
                     # target_velocity = (x_t - x1)/t  =>  x1 ≈ x_t - t * v
                     x1_hat = x_t - t_expanded * model_pred
-                    with torch.no_grad():
-                        pred_images = decode_latents(vae, x1_hat)
-                        pred_images = pred_images.clamp(-1, 1)
-                        pixel_loss = F.mse_loss(pred_images, target_images, reduction="mean")
+
+                    # Decode to image space in [-1, 1]
+                    pred_images = decode_latents(vae, x1_hat)
+                    pred_images = pred_images.clamp(-1, 1)
+
+                    # LPIPS expects float32 NCHW in [-1, 1]
+                    pred_images_32 = pred_images.to(dtype=torch.float32)
+                    target_images_32 = target_images.to(dtype=torch.float32)
+
+                    # LPIPS returns (N, 1, 1, 1); take mean
+                    lpips_val = lpips_loss_fn(pred_images_32, target_images_32)
+                    pixel_loss = lpips_val.mean()
 
                 loss = bridge_loss
                 if pixel_loss is not None:
@@ -750,12 +780,17 @@ def main():
                     tv_flat = target_velocity.reshape(target_velocity.shape[0], -1)
                     cos_sim = F.cosine_similarity(mp_flat, tv_flat, dim=1).mean().item()
                     pixel_str = "" if pixel_loss is None else f", pixel={pixel_loss.item():.4f}"
-                    print(
-                        f"Step {global_step}: loss={loss.item():.4f} (bridge={bridge_loss.item():.4f}{pixel_str}), "
-                        f"cos(model_pred, target_velocity)={cos_sim:.4f}, "
-                        f"model_pred range=[{model_pred.min():.3f}, {model_pred.max():.3f}], "
-                        f"target_velocity range=[{target_velocity.min():.3f}, {target_velocity.max():.3f}]"
-                    )
+
+                    # Store cos_sim for logging
+                    current_cos_sim = cos_sim
+
+                    if global_step % args.logging_steps == 0:
+                        print(
+                            f"Step {global_step}: loss={loss.item():.4f} (bridge={bridge_loss.item():.4f}{pixel_str}), "
+                            f"cos(model_pred, target_velocity)={cos_sim:.4f}, "
+                            f"model_pred range=[{model_pred.min():.3f}, {model_pred.max():.3f}], "
+                            f"target_velocity range=[{target_velocity.min():.3f}, {target_velocity.max():.3f}]"
+                        )
 
                 # Backward pass
                 accelerator.backward(loss)
@@ -782,6 +817,7 @@ def main():
                         "lr": lr_scheduler.get_last_lr()[0],
                         "step": global_step,
                         "epoch": epoch,
+                        "cos_sim": current_cos_sim,  # ✅ 添加余弦相似度
                     }
                     progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=global_step)
@@ -850,13 +886,42 @@ def run_validation(
     global_step,
     scheduler,
 ):
-    """Run validation and log images using Sana's default scheduler with Bridge latents"""
+    """Run validation and log images using ViBT scheduler (optional) with Bridge latents"""
     transformer.eval()
     vae.eval()
     text_encoder.eval()
 
-    # Create a fresh copy of the base Sana scheduler for validation to avoid状态污染
+    # Create a fresh copy of the base Sana scheduler for validation
     scheduler_for_val = type(scheduler).from_config(scheduler.config)
+
+    # Try to use ViBT scheduler if available
+    use_vibt_scheduler = False
+    try:
+        from vibt.scheduler import ViBTScheduler
+        from diffusers.schedulers import UniPCMultistepScheduler
+
+        # Wrap with ViBT scheduler
+        if isinstance(scheduler_for_val, UniPCMultistepScheduler):
+            scheduler_for_val = ViBTScheduler.from_scheduler(
+                scheduler_for_val,
+                noise_scale=args.noise_scale,  # ✅ 使用训练时的 noise_scale
+                shift_gamma=5.0,
+            )
+            use_vibt_scheduler = True
+            logger.info(f"Validation using ViBT scheduler with noise_scale={args.noise_scale}")
+        else:
+            # Try converting to UniPC base first
+            base_unipc = UniPCMultistepScheduler.from_config(scheduler_for_val.config)
+            scheduler_for_val = ViBTScheduler.from_scheduler(
+                base_unipc,
+                noise_scale=args.noise_scale,
+                shift_gamma=5.0,
+            )
+            use_vibt_scheduler = True
+            logger.info(f"Validation using ViBT scheduler with noise_scale={args.noise_scale}")
+    except Exception as e:
+        logger.info(f"ViBT scheduler not available, using model scheduler: {e}")
+        pass
 
     use_concat = args.conditioning in {"concat", "concat_text"}
     if not use_concat:
@@ -898,6 +963,17 @@ def run_validation(
         with torch.no_grad():
             source_latents = encode_images(vae, source_image)
 
+        cond_latents = source_latents
+        if use_concat and args.booting_noise_scale and args.booting_noise_scale > 0:
+            # Deterministic booting noise for validation if seed is set
+            noise = torch.randn(
+                source_latents.shape,
+                generator=generator,
+                device=source_latents.device,
+                dtype=source_latents.dtype,
+            )
+            cond_latents = source_latents + args.booting_noise_scale * noise
+
         with torch.inference_mode():
             with autocast_ctx:
                 if not use_concat:
@@ -926,7 +1002,7 @@ def run_validation(
                         cond_proj=cond_proj_module,
                         scheduler=scheduler_for_val,
                         latents=source_latents,
-                        cond_latents=source_latents,
+                        cond_latents=cond_latents,
                         encoder_hidden_states=encoder_hidden_states,
                         encoder_attention_mask=encoder_attention_mask,
                         num_inference_steps=28,

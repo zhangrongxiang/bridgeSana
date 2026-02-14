@@ -1,0 +1,198 @@
+[
+  {
+    "mode": "timestep_only",
+    "step": 0,
+    "t_trig": 0.0,
+    "tau_linear": 0.0,
+    "t_bridge": 1000.0
+  },
+  {
+    "mode": "timestep_only",
+    "step": 1,
+    "t_trig": 0.0581776425242424,
+    "tau_linear": 0.05503778159618378,
+    "t_bridge": 944.9622192382812
+  },
+  {
+    "mode": "timestep_only",
+    "step": 2,
+    "t_trig": 0.1163552850484848,
+    "tau_linear": 0.10465125739574432,
+    "t_bridge": 895.3487548828125
+  },
+  {
+    "mode": "timestep_only",
+    "step": 3,
+    "t_trig": 0.1745329201221466,
+    "tau_linear": 0.14989624917507172,
+    "t_bridge": 850.103759765625
+  },
+  {
+    "mode": "timestep_only",
+    "step": 4,
+    "t_trig": 0.2327105700969696,
+    "tau_linear": 0.1915954053401947,
+    "t_bridge": 808.404541015625
+  },
+  {
+    "mode": "timestep_only",
+    "step": 5,
+    "t_trig": 0.2908882200717926,
+    "tau_linear": 0.230402410030365,
+    "t_bridge": 769.5975952148438
+  },
+  {
+    "mode": "timestep_only",
+    "step": 6,
+    "t_trig": 0.3490658402442932,
+    "tau_linear": 0.2668461501598358,
+    "t_bridge": 733.15380859375
+  },
+  {
+    "mode": "timestep_only",
+    "step": 7,
+    "t_trig": 0.4072434902191162,
+    "tau_linear": 0.3013627231121063,
+    "t_bridge": 698.6372680664062
+  },
+  {
+    "mode": "timestep_only",
+    "step": 8,
+    "t_trig": 0.4654211401939392,
+    "tau_linear": 0.334318071603775,
+    "t_bridge": 665.6819458007812
+  },
+  {
+    "mode": "timestep_only",
+    "step": 9,
+    "t_trig": 0.5235987901687622,
+    "tau_linear": 0.3660253882408142,
+    "t_bridge": 633.974609375
+  },
+  {
+    "mode": "timestep_only",
+    "step": 10,
+    "t_trig": 0.5817764401435852,
+    "tau_linear": 0.3967582881450653,
+    "t_bridge": 603.24169921875
+  },
+  {
+    "mode": "timestep_only",
+    "step": 11,
+    "t_trig": 0.6399540901184082,
+    "tau_linear": 0.42676082253456116,
+    "t_bridge": 573.2391967773438
+  },
+  {
+    "mode": "timestep_only",
+    "step": 12,
+    "t_trig": 0.6981316804885864,
+    "tau_linear": 0.4562556743621826,
+    "t_bridge": 543.7443237304688
+  },
+  {
+    "mode": "timestep_only",
+    "step": 13,
+    "t_trig": 0.7563093304634094,
+    "tau_linear": 0.48545148968696594,
+    "t_bridge": 514.5485229492188
+  },
+  {
+    "mode": "timestep_only",
+    "step": 14,
+    "t_trig": 0.8144870400428772,
+    "tau_linear": 0.5145485401153564,
+    "t_bridge": 485.4514465332031
+  },
+  {
+    "mode": "timestep_only",
+    "step": 15,
+    "t_trig": 0.8726646900177002,
+    "tau_linear": 0.5437443852424622,
+    "t_bridge": 456.255615234375
+  },
+  {
+    "mode": "timestep_only",
+    "step": 16,
+    "t_trig": 0.9308422803878784,
+    "tau_linear": 0.573239266872406,
+    "t_bridge": 426.7607421875
+  },
+  {
+    "mode": "timestep_only",
+    "step": 17,
+    "t_trig": 0.9890199303627014,
+    "tau_linear": 0.6032417416572571,
+    "t_bridge": 396.7582702636719
+  },
+  {
+    "mode": "timestep_only",
+    "step": 18,
+    "t_trig": 1.0471975803375244,
+    "tau_linear": 0.6339746117591858,
+    "t_bridge": 366.025390625
+  },
+  {
+    "mode": "timestep_only",
+    "step": 19,
+    "t_trig": 1.1053752899169922,
+    "tau_linear": 0.6656820178031921,
+    "t_bridge": 334.3179931640625
+  },
+  {
+    "mode": "timestep_only",
+    "step": 20,
+    "t_trig": 1.1635528802871704,
+    "tau_linear": 0.6986373066902161,
+    "t_bridge": 301.3627014160156
+  },
+  {
+    "mode": "timestep_only",
+    "step": 21,
+    "t_trig": 1.2217304706573486,
+    "tau_linear": 0.7331538200378418,
+    "t_bridge": 266.84619140625
+  },
+  {
+    "mode": "timestep_only",
+    "step": 22,
+    "t_trig": 1.2799081802368164,
+    "tau_linear": 0.7695976495742798,
+    "t_bridge": 230.40234375
+  },
+  {
+    "mode": "timestep_only",
+    "step": 23,
+    "t_trig": 1.3380857706069946,
+    "tau_linear": 0.8084046244621277,
+    "t_bridge": 191.5953826904297
+  },
+  {
+    "mode": "timestep_only",
+    "step": 24,
+    "t_trig": 1.3962634801864624,
+    "tau_linear": 0.8501038551330566,
+    "t_bridge": 149.89614868164062
+  },
+  {
+    "mode": "timestep_only",
+    "step": 25,
+    "t_trig": 1.4544410705566406,
+    "tau_linear": 0.8953487873077393,
+    "t_bridge": 104.65121459960938
+  },
+  {
+    "mode": "timestep_only",
+    "step": 26,
+    "t_trig": 1.5126187801361084,
+    "tau_linear": 0.9449623227119446,
+    "t_bridge": 55.03767776489258
+  },
+  {
+    "mode": "timestep_only",
+    "step": 27,
+    "t_trig": 1.5707963705062866,
+    "tau_linear": 1.0,
+    "t_bridge": 0.0
+  }
+]

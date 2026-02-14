@@ -5,7 +5,7 @@
 
 # Configuration
 MODEL_PATH="/cache/SANA1.5_4.8B_1024px_diffusers"
-LORA_PATH="/cache/sanaoutput/bridge_3d_chibi/checkpoint-2400/pytorch_lora_weights.bin"
+LORA_PATH="/cache/boot2sanaoutput/bridge_3d_chibi_sweep/ns_0.0_boot_0.0/checkpoint-5000/pytorch_lora_weights.bin"
 INPUT_DIR="/cache/omnic/3D_Chibi/src"
 OUTPUT_DIR="./600inference_resultsvibt"
 PROMPT="Convert the style to 3D Chibi Style"
@@ -23,10 +23,13 @@ CONDITIONING="text"
 # Optional: explicit path to cond_proj_weights.bin
 COND_PROJ_PATH=""
 
+# Booting noise (only meaningful for concat inference)
+BOOTING_NOISE_SCALE=0.4
+
 # Scheduler mode: model | vibt
 SCHEDULER_MODE="vibt"
 # ViBT scheduler params (only used when SCHEDULER_MODE="vibt")
-VIBT_NOISE_SCALE=0.7
+VIBT_NOISE_SCALE=0.0
 VIBT_SHIFT_GAMMA=5.0
 
 # Run inference
@@ -39,6 +42,7 @@ CMD=(python batch_inference_visualize.py \
   --num_inference_steps=${NUM_INFERENCE_STEPS} \
   --inference_mode="${INFERENCE_MODE}" \
   --conditioning="${CONDITIONING}" \
+  --booting_noise_scale=${BOOTING_NOISE_SCALE} \
   --scheduler_mode="${SCHEDULER_MODE}" \
   --vibt_noise_scale=${VIBT_NOISE_SCALE} \
   --vibt_shift_gamma=${VIBT_SHIFT_GAMMA} \

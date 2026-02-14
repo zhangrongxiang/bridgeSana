@@ -74,6 +74,12 @@ def parse_args():
         help="Path to cond_proj_weights.bin (optional; auto-detected from LoRA checkpoint directory if omitted).",
     )
     parser.add_argument(
+        "--booting_noise_scale",
+        type=float,
+        default=0.0,
+        help="Std of Gaussian booting noise added to source latents for concat conditioning: x0_cond = x0 + scale * eps. 0 disables.",
+    )
+    parser.add_argument(
         "--num_inference_steps",
         type=int,
         default=28,
@@ -445,6 +451,16 @@ def main():
             # Encode source image
             source_latents, source_img = encode_image(vae, image_path, device)
 
+            cond_latents = source_latents
+            if use_concat_backend and args.booting_noise_scale and args.booting_noise_scale > 0:
+                noise = torch.randn(
+                    source_latents.shape,
+                    generator=generator,
+                    device=source_latents.device,
+                    dtype=source_latents.dtype,
+                )
+                cond_latents = source_latents + args.booting_noise_scale * noise
+
             with torch.inference_mode():
                 autocast_ctx = (
                     torch.autocast("cuda", dtype=torch.bfloat16)
@@ -477,7 +493,7 @@ def main():
                         scheduler.set_timesteps(args.num_inference_steps, device=device)
                         latents = source_latents
                         for t in scheduler.timesteps:
-                            model_in = cond_proj(torch.cat([latents, source_latents], dim=1))
+                            model_in = cond_proj(torch.cat([latents, cond_latents], dim=1))
                             if do_cfg:
                                 model_in = torch.cat([model_in, model_in], dim=0)
 
