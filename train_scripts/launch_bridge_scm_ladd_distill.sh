@@ -29,7 +29,7 @@ export TEACHER_COND_PROJ_PATH="/cache/boot2sanaoutput/bridge_3d_chibi_sweep/ns_0
 export RESOLUTION=1024
 export TRAIN_BATCH_SIZE=1
 export GRADIENT_ACCUMULATION_STEPS=1
-export MAX_TRAIN_STEPS=20000
+export MAX_TRAIN_STEPS=5000
 export LEARNING_RATE=1e-4
 
 # LoRA configuration
@@ -63,7 +63,7 @@ export SCM_WEIGHTING="none"   # none | inv_tan
 # Misc
 export CHECKPOINTING_STEPS=500
 export LOGGING_STEPS=10
-export IMAGE_LOGGING_STEPS=2   # set to e.g. 100 to log images every 100 steps
+export IMAGE_LOGGING_STEPS=10  # set to e.g. 100 to log images every 100 steps
 export NUM_LOG_IMAGES=4
 export SEED=42
 

@@ -5,13 +5,13 @@
 
 # Configuration
 MODEL_PATH="/cache/SANA1.5_4.8B_1024px_diffusers"
-LORA_PATH="/cache/boot2sanaoutput/bridge_3d_chibi_sweep/ns_0.0_boot_0.0/checkpoint-5000/pytorch_lora_weights.bin"
+LORA_PATH="/cache/new-sanaoutput/bridge_distill_3d_chibi/checkpoint-5000/pytorch_lora_weights.bin"
 INPUT_DIR="/cache/omnic/3D_Chibi/src"
 OUTPUT_DIR="./600inference_resultsvibt"
 PROMPT="Convert the style to 3D Chibi Style"
 
 # Inference parameters
-NUM_INFERENCE_STEPS=28
+NUM_INFERENCE_STEPS=1
 GUIDANCE_SCALE=1.0
 SEED=42
 MAX_IMAGES=9  # Process first 9 images (set to empty for all)
@@ -24,7 +24,7 @@ CONDITIONING="text"
 COND_PROJ_PATH=""
 
 # Booting noise (only meaningful for concat inference)
-BOOTING_NOISE_SCALE=0.4
+BOOTING_NOISE_SCALE=0.0
 
 # Scheduler mode: model | vibt
 SCHEDULER_MODE="vibt"

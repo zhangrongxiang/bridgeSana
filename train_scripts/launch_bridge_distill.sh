@@ -5,7 +5,7 @@
 
 export MODEL_PATH="/cache/SANA1.5_4.8B_1024px_diffusers"
 export DATA_DIR="/cache/omnic/3D_Chibi"
-export OUTPUT_DIR="/cache/sanaoutput/bridge_distill_3d_chibi"
+export OUTPUT_DIR="/cache/new-sanaoutput/bridge_distill_3d_chibi"
 
 # IMPORTANT: initialize from a trained Bridge LoRA (so the model can do bridge-path inference)
 # Can be a directory like /path/to/checkpoint-XXXX or /path/to/final_checkpoint
@@ -15,7 +15,7 @@ export INIT_LORA_PATH="/cache/boot2sanaoutput/bridge_3d_chibi_sweep/ns_0.5_boot_
 export RESOLUTION=1024
 export TRAIN_BATCH_SIZE=2
 export GRADIENT_ACCUMULATION_STEPS=1
-export MAX_TRAIN_STEPS=10000
+export MAX_TRAIN_STEPS=5000
 export LEARNING_RATE=1e-4
 
 # LoRA configuration

@@ -138,7 +138,7 @@ class BridgeDataset(Dataset):
         self.data_dir = Path(data_dir)
         self.resolution = resolution
 
-        jsonl_path = self.data_dir / "train.jsonl"
+        jsonl_path = self.data_dir / "train_teacher_synth.jsonl"
         self.data = []
         with open(jsonl_path, 'r') as f:
             for line in f:
